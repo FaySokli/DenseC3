@@ -1,0 +1,7 @@
+- model=contriever
+- dataset=msmarco
+- testing=msmarco
+- dataset.model_dir=output/msmarco/saved_model_biencoder
+- training.lr=2e-6
+- training.max_epoch=20
+- training.batch_size=32
