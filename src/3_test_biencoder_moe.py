@@ -7,9 +7,10 @@ import torch
 import tqdm
 from indxr import Indxr
 from omegaconf import DictConfig, OmegaConf
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, AutoConfig
 
 from model.models import BertWithMoE, BiEncoder
+from model.moe_bert import MoEBertModel
 from model.utils import seed_everything
 
 from ranx import Run, Qrels, compare
@@ -74,7 +75,14 @@ def main(cfg: DictConfig):
         category_to_label[cat] = 0
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
-    doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
+    config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
+    config.num_experts = cfg.model.init.num_experts
+    config.num_experts_to_use = cfg.model.init.num_experts_to_use
+    config.adapter_residual = True #cfg.model.init.residual
+    config.adapter_latent_size = 96 #cfg.model.init.latent_size
+    config.adapter_non_linearity = 'gelu' #cfg.model.init.non_linearity
+    doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
     # doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model)
     model = BiEncoder(
         doc_model=doc_model,

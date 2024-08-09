@@ -106,7 +106,7 @@ class MoE(nn.Module):
         self.experts = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(input_dim, hidden_dim),
-                nn.GELU(),
+                nn.ReLU(),
                 nn.Linear(hidden_dim, output_dim),
                 # nn.LayerNorm(output_dim, eps=1e-12)
             ) for _ in range(num_experts)
@@ -120,37 +120,7 @@ class MoE(nn.Module):
 
     def forward(self, x, gating_weights):
         
-        """
         original_shape = x.shape
-        if len(x.shape) > 2:
-            x = x.view(-1, x.shape[-1])
-
-        out_layers = x
-        for (weight, bias, activation) in self.experts:
-            out_layers = activation(out_layers.matmul(weight.cuda()).add(bias.cuda()))
-
-        gating_weights = self.gating_network(x)
-        if self.use_noise and self.training:
-            gating_weights = gating_weights + self.noise
-        gating_weights = torch.softmax(gating_weights, dim=-1)
-
-        top_k_weights, top_k_indices = torch.topk(gating_weights, self.num_experts_to_use, dim=-1)
-        output = torch.zeros_like(x)
-        for i in range(self.num_experts_to_use):
-            selected_outputs = out_layers[top_k_indices[:, i], torch.arange(x.shape[0])]
-            output += selected_outputs * top_k_weights[:, i].unsqueeze(-1)
-        output = output + x
-
-        if len(original_shape) > 2:
-            output = output.view(*original_shape[:-1], -1)
-        return output
-
-        """
-        # self.meta_expert.to('meta')
-        # Reshape input if necessary
-        original_shape = x.shape
-        
-        
         if len(x.shape) > 2:
             x = x.view(-1, x.shape[-1])
         
@@ -171,7 +141,7 @@ class MoE(nn.Module):
         else:
             expert_outputs = torch.stack([expert(x) for expert in self.experts])
         
-        
+        gating_weights = torch.ones_like(gating_weights)
         if self.num_experts_to_use == self.num_experts:
             output = torch.einsum('ij,jik->ik', gating_weights, expert_outputs)
             
@@ -198,9 +168,10 @@ class MoE(nn.Module):
 class MoEBertLayer(BertLayer):
     def __init__(self, config, num_experts=4, num_experts_to_use=4):
         super(MoEBertLayer, self).__init__(config)
-        self.moe = MoE(config.hidden_size, config.intermediate_size, config.hidden_size, num_experts, num_experts_to_use)
+        self.moe = MoE(config.hidden_size, config.hidden_size//4, config.hidden_size, num_experts, num_experts_to_use)
         # self.out_normalize = nn.LayerNorm(config.hidden_size)
         self.gating_network = nn.Linear(config.hidden_size, num_experts)
+        self.normalizer = nn.LayerNorm(config.hidden_size, eps=1e-12)
 
 
     def forward(self, hidden_states, attention_mask=None, head_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, output_attentions=False):
@@ -225,6 +196,7 @@ class MoEBertLayer(BertLayer):
         layer_output = self.moe(first_output[0], gating_weights)
         # layer_output = first_output[0]
         layer_output = layer_output + first_output[0]
+        layer_output = self.normalizer(layer_output)
         
         outputs = (layer_output,) + outputs
         return outputs

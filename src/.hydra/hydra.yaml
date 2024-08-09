@@ -85,16 +85,14 @@ hydra:
     - hydra.mode=RUN
     task:
     - model=contriever
-    - dataset=msmarco
-    - testing=msmarco
-    - dataset.model_dir=output/msmarco/saved_model_biencoder
-    - training.lr=2e-6
-    - training.max_epoch=20
-    - training.batch_size=32
+    - dataset=nfcorpus
+    - testing=nfcorpus
+    - dataset.model_dir=output/nfcorpus/saved_model_biencoder
+    - training.batch_size=64
   job:
-    name: 1_train_new_moe
+    name: 3_test_biencoder_moe
     chdir: true
-    override_dirname: dataset.model_dir=output/msmarco/saved_model_biencoder,dataset=msmarco,model=contriever,testing=msmarco,training.batch_size=32,training.lr=2e-6,training.max_epoch=20
+    override_dirname: dataset.model_dir=output/nfcorpus/saved_model_biencoder,dataset=nfcorpus,model=contriever,testing=nfcorpus,training.batch_size=64
     id: ???
     num: ???
     config_name: config
@@ -108,21 +106,21 @@ hydra:
   runtime:
     version: 1.3.2
     version_base: '1.3'
-    cwd: /home/ubuntu/shared/DESIRE-ME/src
+    cwd: /home/ubuntu/shared/DenseRetrievalMoE/src
     config_sources:
     - path: hydra.conf
       schema: pkg
       provider: hydra
-    - path: /home/ubuntu/shared/DESIRE-ME/conf
+    - path: /home/ubuntu/shared/DenseRetrievalMoE/conf
       schema: file
       provider: main
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /home/ubuntu/shared/DESIRE-ME/src
+    output_dir: /home/ubuntu/shared/DenseRetrievalMoE/src
     choices:
-      dataset: msmarco
-      testing: msmarco
+      dataset: nfcorpus
+      testing: nfcorpus
       model: contriever
       training: contriever
       hydra/env: default

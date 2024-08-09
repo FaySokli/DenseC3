@@ -1,0 +1,19 @@
+defaults:
+  - _self_
+  - model: contriever
+  - training: ${model}
+  - testing: nq-train
+  - dataset: nq-train
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled 
+
+general:
+  seed: 42
+  
+
+hydra:
+  # output_subdir: ${general.data_dir}/hydra  
+  run:  
+    dir: .
+  job:
+    chdir: True

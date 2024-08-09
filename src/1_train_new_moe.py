@@ -10,11 +10,13 @@ import tqdm
 from omegaconf import DictConfig
 from torch import save, load
 from torch.optim import AdamW
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, AutoConfig
 
 from dataloader.dataloader import LoadTrainNQData
 from model.loss import MultipleRankingLoss, MultipleRankingLossBiEncoder, TripletMarginLoss
-from model.models import BiEncoder, BertWithMoE
+from model.models import BiEncoder
+from model.moe_bert import MoEBertModel
+from model.adapter_bert import AdapterBertModel
 from model.utils import seed_everything
 
 logger = logging.getLogger(__name__)
@@ -168,8 +170,18 @@ def main(cfg: DictConfig) -> None:
     )
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
-    doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
-    # doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model)
+    config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
+    config.num_experts = cfg.model.init.num_experts
+    config.num_experts_to_use = cfg.model.init.num_experts_to_use
+    config.adapter_residual = True #cfg.model.init.residual
+    config.adapter_latent_size = 96 #cfg.model.init.latent_size
+    config.adapter_non_linearity = 'relu' #cfg.model.init.non_linearity
+    doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    # doc_model = AdapterBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
+    # doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    # print(doc_model)
+    # exit()
     model = BiEncoder(
         doc_model=doc_model,
         tokenizer=tokenizer,

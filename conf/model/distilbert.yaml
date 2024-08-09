@@ -1,0 +1,15 @@
+init:
+  doc_model: 'sentence-transformers/msmarco-bert-base-dot-v5'
+  tokenizer: ${model.init.doc_model}
+  device: 'cuda'
+  aggregation_mode: 'mean'
+  embedding_size: 768
+  save_model: 'distilbert'
+  specialized_mode: 'weight'
+  max_tokenizer_length: 256
+  normalize: False
+  temperature: 1
+  num_experts_to_use: 6
+  num_experts: 6
+
+continue_train: False
