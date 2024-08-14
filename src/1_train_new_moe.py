@@ -14,9 +14,9 @@ from transformers import AutoModel, AutoTokenizer, AutoConfig
 
 from dataloader.dataloader import LoadTrainNQData
 from model.loss import MultipleRankingLoss, MultipleRankingLossBiEncoder, TripletMarginLoss
-from model.models import BiEncoder
-from model.moe_bert import MoEBertModel
-from model.adapter_bert import AdapterBertModel
+from model.models import MoEBiEncoder
+# from model.moe_bert import MoEBertModel
+# from model.adapter_bert import AdapterBertModel
 from model.utils import seed_everything
 
 logger = logging.getLogger(__name__)
@@ -48,14 +48,14 @@ def train(train_data, model, optimizer, loss_fn, batch_size, epoch, device):
     optimizer.zero_grad()
     sim_accuracy = []
     for _, batch in enumerate(train_data):
-        with torch.autocast(device_type=device):
-            output = model((batch['question'], batch['pos_text']))
+        # with torch.autocast(device_type=device):
+        output = model((batch['question'], batch['pos_text']))
             # class_label = torch.ones(batch['pos_category'].shape[0], 1).to(device)
-            loss_val, sim_correct = loss_fn(
+        loss_val, sim_correct = loss_fn(
                 # class_label, output[0],
-                output[0], output[1]
-            )
-            sim_accuracy.extend(sim_correct.tolist())
+            output[0], output[1]
+        )
+        sim_accuracy.extend(sim_correct.tolist())
 
             # make_dot(loss_val, params=dict(model.named_parameters())).render("loss_val.png", format="png")
             # exit()
@@ -99,14 +99,14 @@ def validate(val_data, model, loss_fn, batch_size, epoch, device):
     val_data = tqdm.tqdm(data)
     for _, batch in enumerate(val_data):
         with torch.no_grad():
-            with torch.autocast(device_type=device):
-                output = model.val_forward((batch['question'], batch['pos_text']))
+            # with torch.autocast(device_type=device):
+            output = model.val_forward((batch['question'], batch['pos_text']))
                 # class_label = torch.ones(batch['pos_category'].shape[0], 1).to(device)
-                loss_val, sim_correct = loss_fn.val_forward(
-                    # class_label, output[0],
-                    output[0], output[1]
-                )
-                sim_accuracy.extend(sim_correct.tolist())
+            loss_val, sim_correct = loss_fn.val_forward(
+                # class_label, output[0],
+                output[0], output[1]
+            )
+            sim_accuracy.extend(sim_correct.tolist())
 
         losses.append(loss_val.cpu().detach().item())
         average_loss = np.mean(losses)
@@ -171,24 +171,26 @@ def main(cfg: DictConfig) -> None:
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
     config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
-    config.num_experts = cfg.model.init.num_experts
-    config.num_experts_to_use = cfg.model.init.num_experts_to_use
-    config.adapter_residual = True #cfg.model.init.residual
-    config.adapter_latent_size = 96 #cfg.model.init.latent_size
-    config.adapter_non_linearity = 'relu' #cfg.model.init.non_linearity
-    doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    config.num_experts = cfg.model.adapters.num_experts
+    config.num_experts_to_use = cfg.model.adapters.num_experts_to_use
+    config.adapter_residual = cfg.model.adapters.residual
+    config.adapter_latent_size = cfg.model.adapters.latent_size
+    config.adapter_non_linearity = cfg.model.adapters.non_linearity
+    config.use_adapters = cfg.model.adapters.use_adapters
+    # doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
     # doc_model = AdapterBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
     # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
-    # doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model, config=config)
     # print(doc_model)
     # exit()
-    model = BiEncoder(
+    model = MoEBiEncoder(
         doc_model=doc_model,
         tokenizer=tokenizer,
-        # num_classes=1,
+        num_classes=cfg.model.adapters.num_experts,
         normalize=cfg.model.init.normalize,
-        # specialized_mode='ones',
+        specialized_mode=cfg.model.init.specialized_mode,
         pooling_mode=cfg.model.init.aggregation_mode,
+        use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
     logging.info("Model: {}, lr: {:.2e}, batch_size: {}, epochs: {}".format(cfg.model.init.doc_model, cfg.training.lr, cfg.training.batch_size, cfg.training.max_epoch))
@@ -210,7 +212,27 @@ def main(cfg: DictConfig) -> None:
     else:
         best_val_loss = 999
     
-    optimizer = AdamW(model.parameters(), lr=cfg.training.lr)
+    # optimizer = AdamW(model.parameters(), lr=cfg.training.lr)
+
+    optimizer = AdamW([
+        {
+            'params': model.doc_model.parameters(),
+            'lr': cfg.training.lr/100,
+        },
+        {
+            'params': model.specializer.parameters(),
+            'lr': cfg.training.lr
+        },
+        {
+            'params': model.cls_1.parameters(),
+            'lr': cfg.training.lr
+        },
+        {
+            'params': model.cls_3.parameters(),
+            'lr': cfg.training.lr
+        }
+    ]
+    )
     
     for epoch in tqdm.tqdm(range(max_epoch)):
         model.train()
@@ -225,7 +247,7 @@ def main(cfg: DictConfig) -> None:
             logging.info(f'Found new best model on epoch: {epoch + 1}, new best validation loss {val_loss}')
             best_val_loss = val_loss
             logging.info(f'saving model checkpoint at epoch {epoch + 1}')
-            save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt')
+        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt')
 
 
 if __name__ == '__main__':

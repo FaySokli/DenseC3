@@ -9,8 +9,7 @@ from indxr import Indxr
 from omegaconf import DictConfig, OmegaConf
 from transformers import AutoModel, AutoTokenizer, AutoConfig
 
-from model.models import BertWithMoE, BiEncoder
-from model.moe_bert import MoEBertModel
+from model.models import MoEBiEncoder
 from model.utils import seed_everything
 
 from ranx import Run, Qrels, compare
@@ -39,6 +38,7 @@ def get_full_bert_rank(data, model, doc_embedding, id_to_index, k=1000):
     model.eval()
     for d in tqdm.tqdm(data, total=len(data)):
         with torch.no_grad():
+            # with torch.autocast(device_type=model.device):
             q_embedding = model.query_encoder([d['text']])
         
         bert_scores = torch.einsum('xy, ly -> x', doc_embedding, q_embedding)
@@ -76,27 +76,28 @@ def main(cfg: DictConfig):
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
     config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
-    config.num_experts = cfg.model.init.num_experts
-    config.num_experts_to_use = cfg.model.init.num_experts_to_use
-    config.adapter_residual = True #cfg.model.init.residual
-    config.adapter_latent_size = 96 #cfg.model.init.latent_size
-    config.adapter_non_linearity = 'gelu' #cfg.model.init.non_linearity
-    doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
+    config.num_experts = cfg.model.adapters.num_experts
+    config.num_experts_to_use = cfg.model.adapters.num_experts_to_use
+    config.adapter_residual = cfg.model.adapters.residual
+    config.adapter_latent_size = cfg.model.adapters.latent_size
+    config.adapter_non_linearity = cfg.model.adapters.non_linearity
+    config.use_adapters = cfg.model.adapters.use_adapters
+    # doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
     # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
-    # doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model)
-    model = BiEncoder(
+    doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model)
+    model = MoEBiEncoder(
         doc_model=doc_model,
         tokenizer=tokenizer,
-        # num_classes=1,
+        num_classes=cfg.model.adapters.num_experts,
         normalize=cfg.model.init.normalize,
-        # specialized_mode='ones',
+        specialized_mode=cfg.model.init.specialized_mode,
         pooling_mode=cfg.model.init.aggregation_mode,
+        use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
-    
-    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt'))
+    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt', weights_only=True))
         
-    doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_fullrank.pt').to(cfg.model.init.device)
+    doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
     
     with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_fullrank.json', 'r') as f:
         id_to_index = json.load(f)
@@ -125,7 +126,7 @@ def main(cfg: DictConfig):
         ranx_run = Run(bert_run, 'FullRun')
         models = [ranx_run]
     
-    ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.lz4')
+    # ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.lz4')
     
     evaluation_report = compare(ranx_qrels, models, ['map@100', 'mrr@10', 'recall@100', 'ndcg@10', 'precision@1', 'ndcg@3'])
     print(evaluation_report)

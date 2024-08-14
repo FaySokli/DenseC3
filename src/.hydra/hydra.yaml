@@ -85,14 +85,17 @@ hydra:
     - hydra.mode=RUN
     task:
     - model=contriever
-    - dataset=nfcorpus
-    - testing=nfcorpus
-    - dataset.model_dir=output/nfcorpus/saved_model_biencoder
+    - dataset=nq-train
+    - testing=nq-train
+    - dataset.model_dir=output/nq-train/saved_model_biencoder
+    - training.lr=1e-6
+    - training.max_epoch=10
     - training.batch_size=64
+    - model.adapters.use_adapters=False
   job:
-    name: 3_test_biencoder_moe
+    name: 1_train_new_moe
     chdir: true
-    override_dirname: dataset.model_dir=output/nfcorpus/saved_model_biencoder,dataset=nfcorpus,model=contriever,testing=nfcorpus,training.batch_size=64
+    override_dirname: dataset.model_dir=output/nq-train/saved_model_biencoder,dataset=nq-train,model.adapters.use_adapters=False,model=contriever,testing=nq-train,training.batch_size=64,training.lr=1e-6,training.max_epoch=10
     id: ???
     num: ???
     config_name: config
@@ -119,8 +122,8 @@ hydra:
       provider: schema
     output_dir: /home/ubuntu/shared/DenseRetrievalMoE/src
     choices:
-      dataset: nfcorpus
-      testing: nfcorpus
+      dataset: nq-train
+      testing: nq-train
       model: contriever
       training: contriever
       hydra/env: default

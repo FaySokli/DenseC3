@@ -5,12 +5,17 @@ init:
   aggregation_mode: 'mean'
   embedding_size: 768
   save_model: 'contriever'
-  specialized_mode: 'weight'
+  specialized_mode: 'desireme'
   max_tokenizer_length: 256
   normalize: False
   temperature: 0.05
-  num_experts_to_use: 3
-  num_experts: 3
+adapters:
+  num_experts_to_use: 6
+  num_experts: 6
+  residual: True
+  latent_size: 192
+  non_linearity: 'relu'
+  use_adapters: True
 
 continue_train: False
   

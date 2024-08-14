@@ -47,6 +47,7 @@ class BottleneckAdapterLayer(nn.Module):
 class AdapterBertIntermediateMoE(BertIntermediate):
     def __init__(self, config, layer_index):
         super().__init__(config)
+        self.use_adapters = config.use_adapters
         self.intermediate_adapter_moe = nn.ModuleList(
             [
                 BottleneckAdapterLayer(config) for _ in range(config.num_experts)
@@ -54,9 +55,9 @@ class AdapterBertIntermediateMoE(BertIntermediate):
         )
 
     def forward(self, hidden_states, gating_weights):
-        
-        hidden_states = torch.stack([output_adapter(hidden_states) for output_adapter in self.intermediate_adapter_moe], dim=1)
-        hidden_states = torch.einsum("ij,ijkl->ikl", gating_weights, hidden_states)
+        if self.use_adapters:
+            hidden_states = torch.stack([output_adapter(hidden_states) for output_adapter in self.intermediate_adapter_moe], dim=1)
+            hidden_states = torch.einsum("ij,ijkl->ikl", gating_weights, hidden_states)
 
         hidden_states = self.dense(hidden_states)
         hidden_states = self.intermediate_act_fn(hidden_states)
@@ -66,6 +67,7 @@ class AdapterBertIntermediateMoE(BertIntermediate):
 class AdapterBertOutputMoE(BertOutput):
     def __init__(self, config, layer_index):
         super().__init__(config)
+        self.use_adapters = config.use_adapters
         self.output_moe = nn.ModuleList(
             [
                 BottleneckAdapterLayer(config) for _ in range(config.num_experts)
@@ -79,8 +81,9 @@ class AdapterBertOutputMoE(BertOutput):
         hidden_states = self.dropout(hidden_states)
         
         # MoE layers
-        hidden_states = torch.stack([output_adapter(hidden_states) for output_adapter in self.output_moe], dim=1)
-        hidden_states = torch.einsum("ij,ijkl->ikl", gating_weights, hidden_states)
+        if self.use_adapters:
+            hidden_states = torch.stack([output_adapter(hidden_states) for output_adapter in self.output_moe], dim=1)
+            hidden_states = torch.einsum("ij,ijkl->ikl", gating_weights, hidden_states)
         
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
 

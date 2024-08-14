@@ -1,5 +1,8 @@
 - model=contriever
-- dataset=nfcorpus
-- testing=nfcorpus
-- dataset.model_dir=output/nfcorpus/saved_model_biencoder
+- dataset=nq-train
+- testing=nq-train
+- dataset.model_dir=output/nq-train/saved_model_biencoder
+- training.lr=1e-6
+- training.max_epoch=10
 - training.batch_size=64
+- model.adapters.use_adapters=False
