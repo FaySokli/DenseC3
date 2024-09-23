@@ -1,4 +1,4 @@
-data_dir: ../nq
+data_dir: /home/ubuntu/esokli/DenseRetrievalMoE-local/nq
 corpus_path: ${testing.data_dir}/wiki_corpus.jsonl
 query_path: ${testing.data_dir}/queries.jsonl
 qrels_path: ${testing.data_dir}/qrels.json

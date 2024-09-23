@@ -142,7 +142,7 @@ def main(cfg: DictConfig) -> None:
 
     qrel_df = pd.read_csv(cfg.dataset.qrels_path, sep='\t')
     qrels = {}
-        
+    
     for index, row in qrel_df.iterrows():
         q_id = str(row['query-id']) 
         
@@ -217,7 +217,7 @@ def main(cfg: DictConfig) -> None:
     optimizer = AdamW([
         {
             'params': model.doc_model.parameters(),
-            'lr': cfg.training.lr/100,
+            'lr': cfg.training.lr/100, 
         },
         {
             'params': model.specializer.parameters(),

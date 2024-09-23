@@ -23,27 +23,24 @@ model:
 training:
   lr: 0.0001
   batch_size: 64
-  max_epoch: 30
+  max_epoch: 20
 testing:
-  data_dir: ../fever
-  corpus_path: ${testing.data_dir}/wiki_corpus.jsonl
-  dev_query_path: ${dataset.data_dir}/dev_queries.jsonl
-  dev_qrels_path: ${dataset.data_dir}/dev_qrels.json
-  dev_bm25_run_path: ${testing.data_dir}/dev_bm25_run.json
-  query_path: ${testing.data_dir}/test_queries.jsonl
-  qrels_path: ${testing.data_dir}/qrels.json
+  data_dir: ../amenra/political_science
+  corpus_path: ${testing.data_dir}/collection.jsonl
+  query_path: ${testing.data_dir}/test/queries.jsonl
+  qrels_path: ${testing.data_dir}/test/qrels.json
   bm25_run_path: ${testing.data_dir}/bm25_run.lz4
   category_to_label: ${testing.data_dir}/category_to_label.json
   embedding_dir: ${dataset.output_dir}/embeddings
   rerank: false
 dataset:
-  data_dir: ../fever
-  corpus_path: ${dataset.data_dir}/wiki_corpus.jsonl
-  query_path: ${dataset.data_dir}/train_queries.jsonl
-  qrels_path: ${dataset.data_dir}/qrels/train.tsv
+  data_dir: ../amenra/political_science
+  corpus_path: ${dataset.data_dir}/collection.jsonl
+  query_path: ${dataset.data_dir}/train/queries.jsonl
+  qrels_path: ${dataset.data_dir}/train/qrels.tsv
   category_to_label: ${dataset.data_dir}/category_to_label.json
   val_split: 0.05
-  output_dir: output/fever
-  model_dir: output/fever/saved_model_biencoder
+  output_dir: output/amenra/political_science
+  model_dir: ${dataset.output_dir}/saved_models
   logs_dir: ${dataset.output_dir}/logs
   runs_dir: ${dataset.output_dir}/runs

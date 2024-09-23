@@ -10,11 +10,11 @@ init:
   normalize: True
   temperature: 1
 adapters:
-  num_experts_to_use: 3
-  num_experts: 3
+  num_experts_to_use: 6
+  num_experts: 6
   residual: True
   latent_size: 96
   non_linearity: 'relu'
-  use_adapters: True
+  use_adapters: False
 
 continue_train: False

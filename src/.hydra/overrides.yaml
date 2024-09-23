@@ -1,6 +1,1 @@
-- model=contriever
-- dataset=fever
-- testing=fever
-- dataset.model_dir=output/fever/saved_model_biencoder
-- training.batch_size=64
-- model.adapters.use_adapters=False
+[]

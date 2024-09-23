@@ -15,7 +15,7 @@ adapters:
   residual: True
   latent_size: 192
   non_linearity: 'relu'
-  use_adapters: True
+  use_adapters: False
 
 continue_train: False
   
