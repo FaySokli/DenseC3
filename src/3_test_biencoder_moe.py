@@ -126,7 +126,7 @@ def main(cfg: DictConfig):
         ranx_run = Run(bert_run, 'FullRun')
         models = [ranx_run]
     
-    # ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.lz4')
+    ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.json')
     
     evaluation_report = compare(ranx_qrels, models, ['map@100', 'mrr@10', 'recall@100', 'ndcg@10', 'precision@1', 'ndcg@3'])
     print(evaluation_report)

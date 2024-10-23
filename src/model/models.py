@@ -389,35 +389,30 @@ class MoEBiEncoder(nn.Module):
         # x2 = F.relu(self.cls_2(x1))
         out = self.cls_3(x1)
 
-        #Adding scaled unit gaussian noise to the logits
-        noise_logits = self.noise_linear(query_embedding)
-        noise = torch.randn_like(out)*F.softplus(noise_logits)
-        noisy_logits = out + noise
+        # #Adding scaled unit gaussian noise to the logits
+        # noise_logits = self.noise_linear(query_embedding)
+        # noise = torch.randn_like(out)*F.softplus(noise_logits)
+        # noisy_logits = out + noise
 
-        noisy_logits = torch.softmax(noisy_logits, dim=-1)
+        # noisy_logits = torch.softmax(noisy_logits, dim=-1)
+
+        # # TOP-k GATING
+        # topk_values, topk_indices = torch.topk(noisy_logits, 1, dim=1)
+        # mask = torch.zeros_like(noisy_logits).scatter_(1, topk_indices, 1)
+        
+        # # Multiply the original output with the mask to keep only the max value
+        # noisy_logits = noisy_logits * mask
+        # return noisy_logits
+
+        out = torch.softmax(out, dim=-1)
 
         # TOP-k GATING
-        topk_values, topk_indices = torch.topk(noisy_logits, 2, dim=1)
-        mask = torch.zeros_like(noisy_logits).scatter_(1, topk_indices, 1)
+        topk_values, topk_indices = torch.topk(out, 5, dim=1)
+        mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
         
         # Multiply the original output with the mask to keep only the max value
-        noisy_logits = noisy_logits * mask
-        return noisy_logits
-
-        # out = torch.softmax(out, dim=-1)
-
-        # TOP-1 GATING
-        # max_index = torch.argmax(out, dim=1, keepdim=True)
-        # mask = torch.zeros_like(out)
-        # mask.scatter_(1, max_index, 1)
-
-        # TOP-k GATING
-        # topk_values, topk_indices = torch.topk(out, 8, dim=1)
-        # mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
-        
-        # Multiply the original output with the mask to keep only the max value
-        # out = out * mask
-        # return out
+        out = out * mask
+        return out
     
 
     def forward(self, data):
