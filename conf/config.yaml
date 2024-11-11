@@ -1,9 +1,9 @@
 defaults:
   - _self_
-  - model: contriever
+  - model: bert-base
   - training: ${model}
-  - testing: amenra
-  - dataset: amenra
+  - testing: hotpotqa
+  - dataset: hotpotqa
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled 
 
