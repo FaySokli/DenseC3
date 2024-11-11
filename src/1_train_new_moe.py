@@ -134,12 +134,6 @@ def main(cfg: DictConfig) -> None:
 
     seed_everything(cfg.general.seed)
 
-    with open(cfg.dataset.category_to_label, 'r') as f:
-        category_to_label = json.load(f)
-
-    for cat in category_to_label:
-        category_to_label[cat] = 0
-
     qrel_df = pd.read_csv(cfg.dataset.qrels_path, sep='\t')
     qrels = {}
     
@@ -154,8 +148,7 @@ def main(cfg: DictConfig) -> None:
     data = LoadTrainNQData(
         cfg.dataset.query_path, 
         cfg.dataset.corpus_path, 
-        qrels, 
-        category_to_label
+        qrels
     )
 
     val_split = cfg.dataset.val_split

@@ -4,11 +4,10 @@ import random
 
 
 class LoadTrainNQData(torch.utils.data.Dataset):
-    def __init__(self, query_path, corpus_path, qrels, category_to_label):
+    def __init__(self, query_path, corpus_path, qrels):
         self.query_path  = query_path
         self.corpus_path = corpus_path
         self.qrels = qrels
-        self.cat_to_label = category_to_label
         
         self.init_query()
         self.init_corpus()

@@ -69,11 +69,6 @@ def main(cfg: DictConfig):
 
     seed_everything(cfg.general.seed)
 
-    with open(cfg.dataset.category_to_label, 'r') as f:
-        category_to_label = json.load(f)
-    for cat in category_to_label:
-        category_to_label[cat] = 0
-
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
     config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
     config.num_experts = cfg.model.adapters.num_experts
