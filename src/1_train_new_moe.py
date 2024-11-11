@@ -142,7 +142,7 @@ def main(cfg: DictConfig) -> None:
 
     qrel_df = pd.read_csv(cfg.dataset.qrels_path, sep='\t')
     qrels = {}
-        
+    
     for index, row in qrel_df.iterrows():
         q_id = str(row['query-id']) 
         
@@ -217,7 +217,7 @@ def main(cfg: DictConfig) -> None:
     optimizer = AdamW([
         {
             'params': model.doc_model.parameters(),
-            'lr': cfg.training.lr/100,
+            'lr': cfg.training.lr/100, 
         },
         {
             'params': model.specializer.parameters(),
@@ -247,7 +247,7 @@ def main(cfg: DictConfig) -> None:
             logging.info(f'Found new best model on epoch: {epoch + 1}, new best validation loss {val_loss}')
             best_val_loss = val_loss
             logging.info(f'saving model checkpoint at epoch {epoch + 1}')
-        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt')
+        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,16 @@
+__pycache__/
+.ipynb_checkpoints/
+nq*
+multi-domain*
+hotpotqa*
+nfcorpus*
+fiqa*
+.hydra/
+output/
+*.json
+*.jsonl
+*.csv
+*.tsv
+*.txt
+*.png
+*.pt

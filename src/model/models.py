@@ -358,6 +358,7 @@ class MoEBiEncoder(nn.Module):
         self.cls_1 = nn.Linear(self.hidden_size, self.hidden_size//2).to(self.device)
         # self.cls_2 = nn.Linear(self.hidden_size*2, self.hidden_size*4).to(self.device)
         self.cls_3 = nn.Linear(self.hidden_size//2, self.num_classes).to(self.device)
+        self.noise_linear = nn.Linear(self.hidden_size, self.num_classes).to(self.device)
         
     
     def query_encoder(self, sentences):
@@ -387,7 +388,30 @@ class MoEBiEncoder(nn.Module):
         x1 = F.relu(self.cls_1(query_embedding))
         # x2 = F.relu(self.cls_2(x1))
         out = self.cls_3(x1)
+
+        # #Adding scaled unit gaussian noise to the logits
+        # noise_logits = self.noise_linear(query_embedding)
+        # noise = torch.randn_like(out)*F.softplus(noise_logits)
+        # noisy_logits = out + noise
+
+        # noisy_logits = torch.softmax(noisy_logits, dim=-1)
+
+        # # TOP-k GATING
+        # topk_values, topk_indices = torch.topk(noisy_logits, 1, dim=1)
+        # mask = torch.zeros_like(noisy_logits).scatter_(1, topk_indices, 1)
         
+        # # Multiply the original output with the mask to keep only the max value
+        # noisy_logits = noisy_logits * mask
+        # return noisy_logits
+
+        out = torch.softmax(out, dim=-1)
+
+        # TOP-k GATING
+        topk_values, topk_indices = torch.topk(out, 5, dim=1)
+        mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
+        
+        # Multiply the original output with the mask to keep only the max value
+        out = out * mask
         return out
     
 
@@ -410,7 +434,7 @@ class MoEBiEncoder(nn.Module):
         query_embs = torch.stack(query_embs, dim=1)
         
         if self.specialized_mode == 'desireme':
-            query_class = sigmoid(query_class) # softmax(query_class, dim=-1)
+            query_class = query_class #sigmoid(query_class) # softmax(query_class, dim=-1)
         if self.specialized_mode == 'zeros':
             query_class = torch.zeros(query_class.shape).to(self.device)
         if self.specialized_mode == 'ones':

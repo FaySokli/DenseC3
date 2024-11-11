@@ -62,7 +62,7 @@ def main(cfg: DictConfig):
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
-    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt', weights_only=True))
+    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt', weights_only=True))
     """
     logging.info(f'Loading model from {cfg.model.init.save_model}.pt')
     if os.path.exists(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt'):
@@ -99,10 +99,10 @@ def main(cfg: DictConfig):
     prefix = 'fullrank'
     logging.info(f'Embedded {index} documents. Saving embedding matrix in folder {cfg.testing.embedding_dir}.')
     os.makedirs(cfg.testing.embedding_dir, exist_ok=True)
-    torch.save(embedding_matrix, f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_{prefix}.pt')
+    torch.save(embedding_matrix, f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_{prefix}.pt')
         
     logging.info('Saving id_to_index file.')
-    with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_{prefix}.json', 'w') as f:
+    with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_{prefix}.json', 'w') as f:
         json.dump(id_to_index, f)
     
 if __name__ == '__main__':

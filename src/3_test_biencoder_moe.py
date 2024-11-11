@@ -95,11 +95,11 @@ def main(cfg: DictConfig):
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
-    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt', weights_only=True))
+    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt', weights_only=True))
         
-    doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
+    doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
     
-    with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_fullrank.json', 'r') as f:
+    with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.json', 'r') as f:
         id_to_index = json.load(f)
     
     # with open(cfg.testing.bm25_run_path, 'r') as f:
@@ -126,11 +126,11 @@ def main(cfg: DictConfig):
         ranx_run = Run(bert_run, 'FullRun')
         models = [ranx_run]
     
-    # ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.lz4')
+    ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder.json')
     
     evaluation_report = compare(ranx_qrels, models, ['map@100', 'mrr@10', 'recall@100', 'ndcg@10', 'precision@1', 'ndcg@3'])
     print(evaluation_report)
-    logging.info(f"Results for {cfg.model.init.save_model}_biencoder.json:\n{evaluation_report}")
+    logging.info(f"Results for {cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder.json:\n{evaluation_report}")
 
     if 'nq' not in cfg.testing.data_dir and cfg.testing.rerank:
         with open(cfg.testing.dev_bm25_run_path, 'r') as f:
@@ -141,7 +141,7 @@ def main(cfg: DictConfig):
             
             
         
-        with open(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder_dev.json', 'w') as f:
+        with open(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder_dev.json', 'w') as f:
             json.dump(bert_run, f)
             
             
@@ -160,7 +160,7 @@ def main(cfg: DictConfig):
             ['map@100', 'mrr@10', 'recall@100', 'precision@5', 'ndcg@10', 'precision@1', 'ndcg@3']
         )
         print(evaluation_report)
-        logging.info(f"Results for dev set {cfg.model.init.save_model}_biencoder.json:\n{evaluation_report}")
+        logging.info(f"Results for dev set {cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder.json:\n{evaluation_report}")
 
 
 if __name__ == '__main__':

@@ -1,10 +1,10 @@
 init:
-  doc_model: 'facebook/contriever-msmarco'
+  doc_model: 'facebook/contriever'
   tokenizer: ${model.init.doc_model}
   device: 'cuda'
   aggregation_mode: 'mean'
   embedding_size: 768
-  save_model: 'contriever'
+  save_model: 'contriever-base'
   specialized_mode: 'desireme'
   max_tokenizer_length: 256
   normalize: False
