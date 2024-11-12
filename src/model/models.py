@@ -315,7 +315,7 @@ class MoEBiEncoder(nn.Module):
         num_classes,
         max_tokens=512,
         normalize=False,
-        specialized_mode='desireme',
+        specialized_mode='sbmoe',
         pooling_mode='mean',
         use_adapters=True,
         device='cpu',
@@ -328,7 +328,7 @@ class MoEBiEncoder(nn.Module):
         self.normalize = normalize
         self.max_tokens = max_tokens
         self.use_adapters = use_adapters
-        assert specialized_mode in ['desireme', 'zeros', 'ones', 'rand'], 'Only desireme, zeros, ones and rand specialzed mode allowed'
+        assert specialized_mode in ['sbmoe', 'zeros', 'ones', 'rand'], 'Only sbmoe, zeros, ones and rand specialzed mode allowed'
         self.specialized_mode = specialized_mode
         assert pooling_mode in ['max', 'mean', 'cls', 'identity'], 'Only cls, identity, max and mean pooling allowed'
         if pooling_mode == 'mean':
@@ -389,30 +389,32 @@ class MoEBiEncoder(nn.Module):
         # x2 = F.relu(self.cls_2(x1))
         out = self.cls_3(x1)
 
-        # #Adding scaled unit gaussian noise to the logits
-        # noise_logits = self.noise_linear(query_embedding)
-        # noise = torch.randn_like(out)*F.softplus(noise_logits)
-        # noisy_logits = out + noise
+        if self.training:
+            #Adding scaled unit gaussian noise to the logits
+            noise_logits = self.noise_linear(query_embedding)
+            noise = torch.randn_like(out)*F.softplus(noise_logits)
+            noisy_logits = out + noise
 
-        # noisy_logits = torch.softmax(noisy_logits, dim=-1)
+            noisy_logits = torch.softmax(noisy_logits, dim=-1)
 
-        # # TOP-k GATING
-        # topk_values, topk_indices = torch.topk(noisy_logits, 1, dim=1)
-        # mask = torch.zeros_like(noisy_logits).scatter_(1, topk_indices, 1)
+            # TOP-k GATING
+            topk_values, topk_indices = torch.topk(noisy_logits, 1, dim=1)
+            mask = torch.zeros_like(noisy_logits).scatter_(1, topk_indices, 1)
+            
+            # Multiply the original output with the mask to keep only the max value
+            noisy_logits = noisy_logits * mask
+            return noisy_logits
         
-        # # Multiply the original output with the mask to keep only the max value
-        # noisy_logits = noisy_logits * mask
-        # return noisy_logits
+        else:
+            out = torch.softmax(out, dim=-1)
 
-        out = torch.softmax(out, dim=-1)
-
-        # TOP-k GATING
-        topk_values, topk_indices = torch.topk(out, 5, dim=1)
-        mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
-        
-        # Multiply the original output with the mask to keep only the max value
-        out = out * mask
-        return out
+            # TOP-k GATING
+            topk_values, topk_indices = torch.topk(out, 1, dim=1)
+            mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
+            
+            # Multiply the original output with the mask to keep only the max value
+            out = out * mask
+            return out
     
 
     def forward(self, data):
@@ -433,7 +435,7 @@ class MoEBiEncoder(nn.Module):
         
         query_embs = torch.stack(query_embs, dim=1)
         
-        if self.specialized_mode == 'desireme':
+        if self.specialized_mode == 'sbmoe':
             query_class = query_class #sigmoid(query_class) # softmax(query_class, dim=-1)
         if self.specialized_mode == 'zeros':
             query_class = torch.zeros(query_class.shape).to(self.device)

@@ -15,8 +15,6 @@ from transformers import AutoModel, AutoTokenizer, AutoConfig
 from dataloader.dataloader import LoadTrainNQData
 from model.loss import MultipleRankingLoss, MultipleRankingLossBiEncoder, TripletMarginLoss
 from model.models import MoEBiEncoder
-# from model.moe_bert import MoEBertModel
-# from model.adapter_bert import AdapterBertModel
 from model.utils import seed_everything
 
 logger = logging.getLogger(__name__)
