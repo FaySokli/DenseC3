@@ -1,5 +1,5 @@
 data_dir: ../hotpotqa
-corpus_path: ${dataset.data_dir}/wiki_corpus.jsonl
+corpus_path: ${dataset.data_dir}/corpus.jsonl
 query_path: ${dataset.data_dir}/train_queries.jsonl
 qrels_path: ${dataset.data_dir}/qrels/train.tsv
 val_split: 0.05
