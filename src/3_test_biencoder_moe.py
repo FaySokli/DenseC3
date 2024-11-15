@@ -77,8 +77,6 @@ def main(cfg: DictConfig):
     config.adapter_latent_size = cfg.model.adapters.latent_size
     config.adapter_non_linearity = cfg.model.adapters.non_linearity
     config.use_adapters = cfg.model.adapters.use_adapters
-    # doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
-    # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
     doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model)
     model = MoEBiEncoder(
         doc_model=doc_model,

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 
@@ -13,7 +12,7 @@ from torch.optim import AdamW
 from transformers import AutoModel, AutoTokenizer, AutoConfig
 
 from dataloader.dataloader import LoadTrainNQData
-from model.loss import MultipleRankingLoss, MultipleRankingLossBiEncoder, TripletMarginLoss
+from model.loss import MultipleRankingLossBiEncoder
 from model.models import MoEBiEncoder
 from model.utils import seed_everything
 

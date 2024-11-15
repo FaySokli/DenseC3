@@ -10,7 +10,6 @@ from omegaconf import DictConfig
 from transformers import AutoModel, AutoTokenizer, AutoConfig
 
 from model.models import MoEBiEncoder
-# from model.moe_bert import MoEBertModel
 from model.utils import seed_everything
 
 logger = logging.getLogger(__name__)

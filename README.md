@@ -8,5 +8,6 @@ For our experiments we use the following four publically available IR benchmarks
 
 ## Step 2:
 Update the parameters in the ```pipeline.sh``` file to the desired ones and execute the script. <br><br>
-For example, the following command will train SB_MoE on TinyBERT using the HotpotQA dataset by employing 6 experts: <br>
-```python3 1_train_new_moe.py model=tinybert dataset=hotpotqa testing=hotpotqa model.adapters.use_adapters=True model.adapters.num_experts_to_use=6 model.adapters.num_experts=6```
+For example, the following command will train SB_MoE-ALL* on TinyBERT using the HotpotQA dataset by employing 6 experts: <br>
+```python3 1_train_new_moe.py model=tinybert dataset=hotpotqa testing=hotpotqa model.adapters.use_adapters=True model.adapters.num_experts_to_use=6 model.adapters.num_experts=6 model.init.specialized_mode=sbmoe_all``` <br><br>
+_*Note: When use_adapters=True, only two modes are allowed; (i) 'sbmoe_all' and (ii) 'sbmoe_top1'_
