@@ -46,7 +46,7 @@ def train(train_data, model, optimizer, loss_fn, batch_size, epoch, device):
     sim_accuracy = []
     for _, batch in enumerate(train_data):
         # with torch.autocast(device_type=device):
-        output = model((batch['question'], batch['pos_text']))
+        output = model((batch['question'], batch['pos_text'], batch['pos_doc_logits']))
             # class_label = torch.ones(batch['pos_category'].shape[0], 1).to(device)
         loss_val, sim_correct = loss_fn(
                 # class_label, output[0],
@@ -97,7 +97,7 @@ def validate(val_data, model, loss_fn, batch_size, epoch, device):
     for _, batch in enumerate(val_data):
         with torch.no_grad():
             # with torch.autocast(device_type=device):
-            output = model.val_forward((batch['question'], batch['pos_text']))
+            output = model.val_forward((batch['question'], batch['pos_text'], batch['pos_doc_logits']))
                 # class_label = torch.ones(batch['pos_category'].shape[0], 1).to(device)
             loss_val, sim_correct = loss_fn.val_forward(
                 # class_label, output[0],
@@ -145,7 +145,8 @@ def main(cfg: DictConfig) -> None:
     data = LoadTrainNQData(
         cfg.dataset.query_path, 
         cfg.dataset.corpus_path, 
-        qrels
+        qrels,
+        cfg.dataset.corpus_logits
     )
 
     val_split = cfg.dataset.val_split
@@ -167,26 +168,22 @@ def main(cfg: DictConfig) -> None:
     config.adapter_latent_size = cfg.model.adapters.latent_size
     config.adapter_non_linearity = cfg.model.adapters.non_linearity
     config.use_adapters = cfg.model.adapters.use_adapters
-    # doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
-    # doc_model = AdapterBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
-    # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
     doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model, config=config)
-    # print(doc_model)
-    # exit()
+
     model = MoEBiEncoder(
         doc_model=doc_model,
         tokenizer=tokenizer,
         num_classes=cfg.model.adapters.num_experts,
+        max_tokens=cfg.model.init.max_tokenizer_length,
         normalize=cfg.model.init.normalize,
         specialized_mode=cfg.model.init.specialized_mode,
-        pooling_mode=cfg.model.init.aggregation_mode,
+        pooling_mode=cfg.model.init.pooling_mode,
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
     logging.info("Model: {}, lr: {:.2e}, batch_size: {}, epochs: {}".format(cfg.model.init.doc_model, cfg.training.lr, cfg.training.batch_size, cfg.training.max_epoch))
-    logging.info("Normalize: {}, specialized mode: {}, pooling mode: {}".format(cfg.model.init.normalize, cfg.model.init.specialized_mode, cfg.model.init.aggregation_mode))
+    logging.info("Normalize: {}, specialized mode: {}, pooling mode: {}".format(cfg.model.init.normalize, cfg.model.init.specialized_mode, cfg.model.init.pooling_mode))
     loss_fn = MultipleRankingLossBiEncoder(device=cfg.model.init.device, temperature=cfg.model.init.temperature)
-    # loss_fn = TripletMarginLoss(.1)
 
     batch_size = cfg.training.batch_size
     max_epoch = cfg.training.max_epoch
@@ -201,8 +198,6 @@ def main(cfg: DictConfig) -> None:
     
     else:
         best_val_loss = 999
-    
-    # optimizer = AdamW(model.parameters(), lr=cfg.training.lr)
 
     optimizer = AdamW([
         {
@@ -237,7 +232,7 @@ def main(cfg: DictConfig) -> None:
             logging.info(f'Found new best model on epoch: {epoch + 1}, new best validation loss {val_loss}')
             best_val_loss = val_loss
             logging.info(f'saving model checkpoint at epoch {epoch + 1}')
-        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt')
+        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-temp100100.pt')
 
 
 if __name__ == '__main__':

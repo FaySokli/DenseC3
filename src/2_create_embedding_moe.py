@@ -37,7 +37,14 @@ def main(cfg: DictConfig):
     
     corpus = Indxr(cfg.testing.corpus_path, key_id='_id')
     corpus = sorted(corpus, key=lambda k: len(k.get("title", "") + k.get("text", "")), reverse=True)
-
+    # logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
+    # logits_map = {doc['_id']: doc['logits'] for doc in logits}
+    # import ipdb; ipdb.set_trace()
+    # softmax_logits = {
+    # _id: torch.softmax(torch.tensor(logits, dtype=torch.float32), dim=-1)
+    # for _id, logits in logits_map.items()
+    # }
+    
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
     config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
     config.num_experts = cfg.model.adapters.num_experts
@@ -46,16 +53,16 @@ def main(cfg: DictConfig):
     config.adapter_latent_size = cfg.model.adapters.latent_size
     config.adapter_non_linearity = cfg.model.adapters.non_linearity
     config.use_adapters = cfg.model.adapters.use_adapters
-    # doc_model = MoEBertModel.from_pretrained(cfg.model.init.doc_model, config=config)
-    # doc_model = BertWithMoE(cfg.model.init.doc_model, num_experts=cfg.model.init.num_experts, num_experts_to_use=cfg.model.init.num_experts_to_use)
+    config.device = cfg.model.init.device
     doc_model = AutoModel.from_pretrained(cfg.model.init.doc_model, config=config)
     model = MoEBiEncoder(
         doc_model=doc_model,
         tokenizer=tokenizer,
         num_classes=cfg.model.adapters.num_experts,
+        max_tokens=cfg.model.init.max_tokenizer_length,
         normalize=cfg.model.init.normalize,
         specialized_mode=cfg.model.init.specialized_mode,
-        pooling_mode=cfg.model.init.aggregation_mode,
+        pooling_mode=cfg.model.init.pooling_mode,
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
@@ -70,27 +77,32 @@ def main(cfg: DictConfig):
     """
     index = 0
     texts = []
+    doc_logits = []
     id_to_index = {}
-    # with open(cfg.testing.bm25_run_path, 'r') as f:
-    #     bm25_run = json.load(f)
     
     model.eval()
-    embedding_matrix = torch.zeros(len(corpus), cfg.model.init.embedding_size).float()
+    embedding_matrix = torch.zeros(len(corpus), cfg.model.init.embedding_size, device=config.device).float()
+    # all_doc_logits = torch.zeros(len(corpus), cfg.model.adapters.num_experts, device=config.device).float()
     for doc in tqdm.tqdm(corpus):
         
         id_to_index[doc['_id']] = index
         index += 1
         texts.append(doc.get('title','').lower() + ' ' + doc['text'].lower())
+        # doc_logits.append(torch.tensor(logits_map.get(doc['_id'])))
         if len(texts) == cfg.training.batch_size:
             with torch.no_grad():
                 #with torch.autocast(device_type=cfg.model.init.device):
-                embedding_matrix[index - len(texts) : index] = model.doc_encoder(texts).cpu()
-                # embedding_matrix[index - len(texts) : index] = model.doc_encoder(texts).cpu()
+                # all_doc_logits[index - len(texts) : index] = model.cls(torch.stack(doc_logits))
+                # embedding_matrix[index - len(texts) : index] = model.encoder(texts, all_doc_logits[index - len(texts) : index])
+                embedding_matrix[index - len(texts) : index] = model.encoder(texts)
             texts = []
+            doc_logits = []
     if texts:
         with torch.no_grad():
             # with torch.autocast(device_type=cfg.model.init.device):
-            embedding_matrix[index - len(texts) : index] = model.doc_encoder(texts).cpu()
+            # all_doc_logits[index - len(texts) : index] = model.cls(torch.stack(doc_logits))
+            # embedding_matrix[index - len(texts) : index] = model.encoder(texts, all_doc_logits[index - len(texts) : index])
+            embedding_matrix[index - len(texts) : index] = model.encoder(texts)
             
     
     prefix = 'fullrank'
