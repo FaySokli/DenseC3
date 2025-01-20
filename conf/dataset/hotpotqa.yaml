@@ -2,6 +2,7 @@ data_dir: ../hotpotqa
 corpus_path: ${dataset.data_dir}/corpus.jsonl
 query_path: ${dataset.data_dir}/train_queries.jsonl
 qrels_path: ${dataset.data_dir}/qrels/train.tsv
+corpus_logits: ${dataset.data_dir}/blooms/hotpotqa_logits.jsonl
 val_split: 0.05
 output_dir: output/hotpotqa
 model_dir: ${dataset.output_dir}/saved_models
