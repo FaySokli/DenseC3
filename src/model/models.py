@@ -76,19 +76,19 @@ class MoEBiEncoder(nn.Module):
         self.noise_linear = nn.Linear(self.hidden_size, self.num_classes).to(self.device)
         
     
-    # def encoder(self, sentences, logits):
-    def encoder(self, sentences):
+    def encoder(self, sentences, logits):
+    # def encoder(self, sentences):
         embedding = self.encoder_no_moe(sentences)
         if self.use_adapters:
-            cls_logits = self.cls(embedding).to(self.device)
-            embedding = self.embedder(embedding, cls_logits)
+            # logits = self.cls(embedding).to(self.device)
+            embedding = self.embedder(embedding, logits)
         return embedding
     
-    # def cls(self, out):
-    def cls(self, embedding):
-        x1 = F.relu(self.cls_1(embedding))
-        # x2 = F.relu(self.cls_2(x1))
-        out = self.cls_3(x1)
+    def cls(self, out):
+    # def cls(self, embedding):
+    #     x1 = F.relu(self.cls_1(embedding))
+    #     # x2 = F.relu(self.cls_2(x1))
+    #     out = self.cls_3(x1)
 
         # if self.training:
         #     noise_logits = self.noise_linear(embedding)
@@ -123,24 +123,24 @@ class MoEBiEncoder(nn.Module):
     
 
     def forward(self, data):
-        # logits_class = self.cls(data[2]).to(self.device)
-        # query_embedding = self.encoder(data[0], logits_class)
-        # pos_embedding = self.encoder(data[1], logits_class)
+        logits_class = self.cls(data[2]).to(self.device)
+        query_embedding = self.encoder(data[0], logits_class)
+        pos_embedding = self.encoder(data[1], logits_class)
         # query_embedding = self.encoder(data[0], data[2])
         # pos_embedding = self.encoder(data[1], data[2])
-        query_embedding = self.encoder(data[0])
-        pos_embedding = self.encoder(data[1])
+        # query_embedding = self.encoder(data[0])
+        # pos_embedding = self.encoder(data[1])
 
         return query_embedding, pos_embedding
 
     def val_forward(self, data):
-        # logits_class = self.cls(data[2]).to(self.device)
-        # query_embedding = self.encoder(data[0], logits_class)
-        # pos_embedding = self.encoder(data[1], logits_class)
+        logits_class = self.cls(data[2]).to(self.device)
+        query_embedding = self.encoder(data[0], logits_class)
+        pos_embedding = self.encoder(data[1], logits_class)
         # query_embedding = self.encoder(data[0], data[2])
         # pos_embedding = self.encoder(data[1], data[2])
-        query_embedding = self.encoder(data[0])
-        pos_embedding = self.encoder(data[1])
+        # query_embedding = self.encoder(data[0])
+        # pos_embedding = self.encoder(data[1])
 
         return query_embedding, pos_embedding
 
@@ -156,17 +156,17 @@ class MoEBiEncoder(nn.Module):
             return F.normalize(embs, dim=-1)
         return embs
     
-    # def embedder_q(self, embedding):
-    #     embs = [self.specializer[i](embedding) for i in range(self.num_classes)]
-    #     embs = torch.stack(embs, dim=1)
+    def embedder_q(self, embedding):
+        embs = [self.specializer[i](embedding) for i in range(self.num_classes)]
+        embs = torch.stack(embs, dim=1)
         
-    #     return F.normalize(embs, dim=-1)
-        # aggregated_embs = torch.mean(embs, dim=1)
-        # aggregated_embs = F.normalize(aggregated_embs, dim=-1) + embedding
+        # return F.normalize(embs, dim=-1)
+        aggregated_embs = torch.mean(embs, dim=1)
+        aggregated_embs = F.normalize(aggregated_embs, dim=-1) + embedding
 
-        # if self.normalize:
-        #     aggregated_embs = F.normalize(aggregated_embs, dim=-1)
-        # return aggregated_embs
+        if self.normalize:
+            aggregated_embs = F.normalize(aggregated_embs, dim=-1)
+        return aggregated_embs
     
     @staticmethod
     def mean_pooling(model_output, attention_mask):

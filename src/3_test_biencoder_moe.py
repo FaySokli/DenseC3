@@ -40,8 +40,8 @@ def get_full_bert_rank(data, model, doc_embedding, index_to_id, k=1000):
     for q in tqdm.tqdm(data, total=len(data)):
         with torch.no_grad():
             # with torch.autocast(device_type="cuda"):
-            q_embedding = model.encoder([q['text']])
-            # q_embedding = model.embedder_q(q_encoded)
+            q_embedding = model.encoder_no_moe([q['text']])
+            q_embedding = model.embedder_q(q_embedding)
 
             # query_embedding = model.encoder([q['text']])
             # q_logits = model.gate(query_embedding)
@@ -101,12 +101,9 @@ def main(cfg: DictConfig):
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
-    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt', weights_only=True))
-    # torch.set_grad_enabled(False)
-    doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
-    # doc_logits = torch.load(f'{cfg.testing.embedding_dir}/all_doc_logits_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
-    # print(f"DOC Memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-    # print(f"Memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-temp100100.pt', weights_only=True))
+    torch.set_grad_enabled(False)
+    doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank-temp100100.pt', weights_only=True).to(cfg.model.init.device)
 
     # doc_logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
     # logits_map = {doc['_id']: doc['logits'] for doc in doc_logits}
@@ -114,8 +111,7 @@ def main(cfg: DictConfig):
     # _id: torch.softmax(torch.tensor(logits, dtype=torch.float32), dim=-1).to("cuda")
     # for _id, logits in logits_map.items()
     # }
-
-    with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.json', 'r') as f:
+    with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank-temp100100.json', 'r') as f:
         id_to_index = json.load(f)
     
     # with open(cfg.testing.bm25_run_path, 'r') as f:
