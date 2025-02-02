@@ -37,13 +37,9 @@ def main(cfg: DictConfig):
     
     corpus = Indxr(cfg.testing.corpus_path, key_id='_id')
     corpus = sorted(corpus, key=lambda k: len(k.get("title", "") + k.get("text", "")), reverse=True)
-    # logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
-    # logits_map = {doc['_id']: doc['logits'] for doc in logits}
-    # import ipdb; ipdb.set_trace()
-    # softmax_logits = {
-    # _id: torch.softmax(torch.tensor(logits, dtype=torch.float32), dim=-1)
-    # for _id, logits in logits_map.items()
-    # }
+    logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
+    logits_map = {doc['_id']: doc['logits'] for doc in logits}
+    combined = list(map(lambda doc: {**doc, 'logits': logits_map.get(doc['_id'])} if doc['_id'] in logits_map else doc, corpus))
     
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.init.tokenizer)
     config = AutoConfig.from_pretrained(cfg.model.init.doc_model)
@@ -66,7 +62,7 @@ def main(cfg: DictConfig):
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
-    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt', weights_only=True))
+    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-{cfg.model.init.specialized_mode}.pt', weights_only=True))
     """
     logging.info(f'Loading model from {cfg.model.init.save_model}.pt')
     if os.path.exists(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt'):
@@ -81,28 +77,26 @@ def main(cfg: DictConfig):
     id_to_index = {}
     
     model.eval()
-    embedding_matrix = torch.zeros(len(corpus), cfg.model.init.embedding_size, device=config.device).float()
-    # all_doc_logits = torch.zeros(len(corpus), cfg.model.adapters.num_experts, device=config.device).float()
-    for doc in tqdm.tqdm(corpus):
+    embedding_matrix = torch.zeros(len(combined), cfg.model.init.embedding_size, device=config.device).float()
+    all_doc_logits = torch.zeros(len(combined), cfg.model.adapters.num_experts, device=config.device).float()
+    for doc in tqdm.tqdm(combined):
         
         id_to_index[doc['_id']] = index
         index += 1
         texts.append(doc.get('title','').lower() + ' ' + doc['text'].lower())
-        # doc_logits.append(torch.tensor(logits_map.get(doc['_id'])))
+        doc_logits.append(torch.tensor(logits_map.get(doc['_id'])))
         if len(texts) == cfg.training.batch_size:
             with torch.no_grad():
                 #with torch.autocast(device_type=cfg.model.init.device):
-                # all_doc_logits[index - len(texts) : index] = model.cls(torch.stack(doc_logits))
-                # embedding_matrix[index - len(texts) : index] = model.encoder(texts, all_doc_logits[index - len(texts) : index])
-                embedding_matrix[index - len(texts) : index] = model.encoder(texts)
+                all_doc_logits[index - len(texts) : index] = model.cls(torch.stack(doc_logits))
+                embedding_matrix[index - len(texts) : index] = model.encoder(texts, all_doc_logits[index - len(texts) : index])
             texts = []
             doc_logits = []
     if texts:
         with torch.no_grad():
             # with torch.autocast(device_type=cfg.model.init.device):
-            # all_doc_logits[index - len(texts) : index] = model.cls(torch.stack(doc_logits))
-            # embedding_matrix[index - len(texts) : index] = model.encoder(texts, all_doc_logits[index - len(texts) : index])
-            embedding_matrix[index - len(texts) : index] = model.encoder(texts)
+            all_doc_logits[index - len(texts) : index] = model.cls(torch.stack(doc_logits))
+            embedding_matrix[index - len(texts) : index] = model.encoder(texts, all_doc_logits[index - len(texts) : index])
             
     
     prefix = 'fullrank'

@@ -12,12 +12,12 @@ class Specializer(nn.Module):
         
         self.hidden_size = hidden_size
         self.device = device
-        self.embedding_changer_1 = nn.Linear(self.hidden_size, self.hidden_size//2).to(device)
-        self.embedding_changer_4 = nn.Linear(self.hidden_size//2, self.hidden_size).to(device)
+        self.embedding_changer_1 = nn.Linear(self.hidden_size, self.hidden_size//2).to(self.device)
+        self.embedding_changer_4 = nn.Linear(self.hidden_size//2, self.hidden_size).to(self.device)
         
     def forward(self, embs):
-        embs_1 = F.relu(self.embedding_changer_1(embs))
-        embs_2 = self.embedding_changer_4(embs_1)
+        embs_1 = F.relu(self.embedding_changer_1(embs)).to(self.device)
+        embs_2 = self.embedding_changer_4(embs_1).to(self.device)
         
         return embs_2
 
@@ -43,7 +43,7 @@ class MoEBiEncoder(nn.Module):
         self.normalize = normalize
         self.max_tokens = max_tokens
         self.use_adapters = use_adapters
-        assert specialized_mode in ['sbmoe_top1', 'sbmoe_all'], 'Only sbmoe_top1 and sbmoe_all specialzed mode allowed'
+        assert specialized_mode in ['blooms_top1', 'blooms_top1AVG'], 'Only blooms_top1 and blooms_top1AVG specialzed mode allowed'
         self.specialized_mode = specialized_mode
         assert pooling_mode in ['max', 'mean', 'cls', 'identity'], 'Only cls, identity, max and mean pooling allowed'
         if pooling_mode == 'mean':
@@ -56,7 +56,6 @@ class MoEBiEncoder(nn.Module):
             self.pooling = self.identity
         
         self.num_classes = num_classes
-        self.init_cls()
         
         self.specializer = nn.ModuleList([Specializer(self.hidden_size, self.device) for _ in range(self.num_classes)])    
 
@@ -69,78 +68,68 @@ class MoEBiEncoder(nn.Module):
         return self.pooling(embeddings, encoded_input['attention_mask'])
         
     
-    def init_cls(self):
-        self.cls_1 = nn.Linear(self.hidden_size, self.hidden_size//2).to(self.device)
-        # self.cls_2 = nn.Linear(self.hidden_size*2, self.hidden_size*4).to(self.device)
-        self.cls_3 = nn.Linear(self.hidden_size//2, self.num_classes).to(self.device)
-        self.noise_linear = nn.Linear(self.hidden_size, self.num_classes).to(self.device)
-        
-    
     def encoder(self, sentences, logits):
     # def encoder(self, sentences):
         embedding = self.encoder_no_moe(sentences)
         if self.use_adapters:
             # logits = self.cls(embedding).to(self.device)
+            # cls_logits = self.cls(logits).to(self.device)
             embedding = self.embedder(embedding, logits)
         return embedding
     
     def cls(self, out):
-    # def cls(self, embedding):
-    #     x1 = F.relu(self.cls_1(embedding))
-    #     # x2 = F.relu(self.cls_2(x1))
-    #     out = self.cls_3(x1)
-
-        # if self.training:
-        #     noise_logits = self.noise_linear(embedding)
-        #     noise = torch.randn_like(out)*F.softplus(noise_logits)
-        #     noisy_logits = out + noise
-
-        #     noisy_logits = torch.softmax(noisy_logits, dim=-1)
-
-        #     # TOP-k GATING
-        #     topk_values, topk_indices = torch.topk(noisy_logits, 1, dim=1)
-        #     mask = torch.zeros_like(noisy_logits).scatter_(1, topk_indices, 1)
-            
-        #     # Multiply the original output with the mask to keep only the max value
-        #     noisy_logits = noisy_logits * mask
-        #     return noisy_logits
-        
-        # else:
-        if self.specialized_mode == 'sbmoe_top1':
-            out = torch.softmax(out, dim=-1)
+        if self.training:
+            out = torch.softmax(out/10, dim=-1)
+            # out = torch.sigmoid(out/10)
 
             # TOP-k GATING
             topk_values, topk_indices = torch.topk(out, 1, dim=1)
             mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
-            
-            # Multiply the original output with the mask to keep only the max value
             out = out * mask
             return out
         
-        elif self.specialized_mode == 'sbmoe_all':
-            out = torch.softmax(out, dim=-1)
-            return out
+        else:
+            if self.specialized_mode == 'blooms_top1':
+                out = torch.softmax(out/10, dim=-1)
+                # out = torch.sigmoid(out/10)
+
+                # TOP-k GATING
+                topk_values, topk_indices = torch.topk(out, 1, dim=1)
+                mask = torch.zeros_like(out).scatter_(1, topk_indices, 1)
+                
+                # Multiply the original output with the mask to keep only the max value
+                out = out * mask
+                return out
+            
+            elif self.specialized_mode == 'blooms_top1AVG':
+                out = torch.softmax(out/10, dim=-1)
+                # out = torch.sigmoid(out/10)
+                return out
     
 
     def forward(self, data):
         logits_class = self.cls(data[2]).to(self.device)
-        query_embedding = self.encoder(data[0], logits_class)
-        pos_embedding = self.encoder(data[1], logits_class)
-        # query_embedding = self.encoder(data[0], data[2])
-        # pos_embedding = self.encoder(data[1], data[2])
-        # query_embedding = self.encoder(data[0])
-        # pos_embedding = self.encoder(data[1])
+        pos_embedding = self.encoder(data[1], logits_class).to(self.device)
+
+        if self.specialized_mode == 'blooms_top1':
+            query_embedding = self.encoder(data[0], logits_class).to(self.device)
+        elif self.specialized_mode == 'blooms_top1AVG':
+            query_embedding = self.encoder_no_moe(data[0]).to(self.device)
+            if self.use_adapters:
+                query_embedding = self.embedder_q(query_embedding).to(self.device)
 
         return query_embedding, pos_embedding
 
     def val_forward(self, data):
         logits_class = self.cls(data[2]).to(self.device)
-        query_embedding = self.encoder(data[0], logits_class)
-        pos_embedding = self.encoder(data[1], logits_class)
-        # query_embedding = self.encoder(data[0], data[2])
-        # pos_embedding = self.encoder(data[1], data[2])
-        # query_embedding = self.encoder(data[0])
-        # pos_embedding = self.encoder(data[1])
+        pos_embedding = self.encoder(data[1], logits_class).to(self.device)
+
+        if self.specialized_mode == 'blooms_top1':
+            query_embedding = self.encoder(data[0], logits_class).to(self.device)
+        elif self.specialized_mode == 'blooms_top1AVG':
+            query_embedding = self.encoder_no_moe(data[0]).to(self.device)
+            if self.use_adapters:
+                query_embedding = self.embedder_q(query_embedding).to(self.device)
 
         return query_embedding, pos_embedding
 
@@ -148,25 +137,30 @@ class MoEBiEncoder(nn.Module):
     def embedder(self, embedding, logits_class):
         embs = [self.specializer[i](embedding) for i in range(self.num_classes)]
 
-        embs = torch.stack(embs, dim=1)
+        embs = torch.stack(embs, dim=1).to(self.device)
         
-        embs = F.normalize(einsum('bmd,bm->bd', embs, logits_class), dim=-1, eps=1e-6) + embedding
-
+        embs = (F.normalize(einsum('bmd,bm->bd', embs, logits_class), dim=-1, eps=1e-6) + embedding).to(self.device)
+        
         if self.normalize:
-            return F.normalize(embs, dim=-1)
+            return F.normalize(embs, dim=-1).to(self.device)
         return embs
     
     def embedder_q(self, embedding):
         embs = [self.specializer[i](embedding) for i in range(self.num_classes)]
         embs = torch.stack(embs, dim=1)
         
-        # return F.normalize(embs, dim=-1)
         aggregated_embs = torch.mean(embs, dim=1)
-        aggregated_embs = F.normalize(aggregated_embs, dim=-1) + embedding
+        aggregated_embs = (F.normalize(aggregated_embs, dim=-1) + embedding).to(self.device)
 
         if self.normalize:
             aggregated_embs = F.normalize(aggregated_embs, dim=-1)
         return aggregated_embs
+    
+    def embedder_q_inf(self, embedding):
+        embs = [self.specializer[i](embedding) for i in range(self.num_classes)]
+        embs = torch.stack(embs, dim=1)
+        
+        return F.normalize(embs, dim=-1)
     
     @staticmethod
     def mean_pooling(model_output, attention_mask):

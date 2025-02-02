@@ -207,14 +207,6 @@ def main(cfg: DictConfig) -> None:
         {
             'params': model.specializer.parameters(),
             'lr': cfg.training.lr
-        },
-        {
-            'params': model.cls_1.parameters(),
-            'lr': cfg.training.lr
-        },
-        {
-            'params': model.cls_3.parameters(),
-            'lr': cfg.training.lr
         }
     ]
     )
@@ -232,7 +224,7 @@ def main(cfg: DictConfig) -> None:
             logging.info(f'Found new best model on epoch: {epoch + 1}, new best validation loss {val_loss}')
             best_val_loss = val_loss
             logging.info(f'saving model checkpoint at epoch {epoch + 1}')
-        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-temp100100.pt')
+        save(model.state_dict(), f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-{cfg.model.init.specialized_mode}.pt')
 
 
 if __name__ == '__main__':
