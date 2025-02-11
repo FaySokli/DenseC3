@@ -32,28 +32,25 @@ def get_bert_rerank(data, model, doc_embedding, bm25_runs, id_to_index):
     return bert_run
 
 
-# def get_full_bert_rank(data, model, doc_embedding, softmaxed_logits, index_to_id, k=1000):
-def get_full_bert_rank(data, model, doc_embedding, index_to_id, k=1000):
+def get_full_bert_rank(data, model, doc_embedding, softmaxed_logits, index_to_id, k=1000):
     bert_run = {}
-    # index_to_id = {ind: _id for _id, ind in id_to_index.items()}
     model.eval()
     for q in tqdm.tqdm(data, total=len(data)):
         with torch.no_grad():
             # with torch.autocast(device_type="cuda"):
-            q_embedding = model.encoder([q['text']])
-            # q_embedding = model.embedder_q(q_encoded)
+            q_encoded = model.encoder_no_moe([q['text']])
 
-            # query_embedding = model.encoder([q['text']])
-            # q_logits = model.gate(query_embedding)
-            # q_embedding = model.moe_embedder(query_embedding, q_logits)
+            if model.specialized_mode == 'blooms_top1':
+                q_embedding = model.embedder_q_inf(q_encoded)
+                q_embedding = torch.einsum('md,nm->nd', q_embedding.squeeze(0), softmaxed_logits) + q_encoded
+                del q_encoded
+                torch.cuda.empty_cache()
+                bert_scores = torch.einsum('nd,nd->n', doc_embedding, q_embedding)
 
-            # q_embs = model.embedder_q(q_encoded)
-            # q_embedding = torch.einsum('md,nm->nd', q_embs.squeeze(0), softmaxed_logits)
-            # del q_encoded, q_embs
-            # torch.cuda.empty_cache()
-            # bert_scores = torch.einsum('nd,nd->n', doc_embedding, q_embedding)
+            elif model.specialized_mode == 'blooms_top1AVG':
+                q_embedding = model.embedder_q(q_encoded)
+                bert_scores = torch.einsum('xy, ly -> x', doc_embedding, q_embedding)
 
-        bert_scores = torch.einsum('xy, ly -> x', doc_embedding, q_embedding)
         index_sorted = torch.argsort(bert_scores, descending=True)
         top_k = index_sorted[:k]
         bert_ids = [index_to_id[int(_id)] for _id in top_k]
@@ -101,20 +98,17 @@ def main(cfg: DictConfig):
         use_adapters = cfg.model.adapters.use_adapters,
         device=cfg.model.init.device
     )
-    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}.pt', weights_only=True))
-    # torch.set_grad_enabled(False)
+    model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-{cfg.model.init.specialized_mode}.pt', weights_only=True))
+    torch.set_grad_enabled(False)
     doc_embedding = torch.load(f'{cfg.testing.embedding_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
-    # doc_logits = torch.load(f'{cfg.testing.embedding_dir}/all_doc_logits_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.pt', weights_only=True).to(cfg.model.init.device)
-    # print(f"DOC Memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-    # print(f"Memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
-    # doc_logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
-    # logits_map = {doc['_id']: doc['logits'] for doc in doc_logits}
-    # softmax_logits_map = {
-    # _id: torch.softmax(torch.tensor(logits, dtype=torch.float32), dim=-1).to("cuda")
-    # for _id, logits in logits_map.items()
-    # }
-
+    doc_logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
+    logits_map = {doc['_id']: doc['logits'] for doc in doc_logits}
+    softmax_logits_map = {
+    _id: torch.softmax(torch.tensor(logits, dtype=torch.float32)/10, dim=-1).to("cuda")
+    for _id, logits in logits_map.items()
+    }
+    
     with open(f'{cfg.testing.embedding_dir}/id_to_index_{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_fullrank.json', 'r') as f:
         id_to_index = json.load(f)
     
@@ -122,18 +116,17 @@ def main(cfg: DictConfig):
     #     bm25_run = json.load(f)
 
     index_to_id = {ind: _id for _id, ind in id_to_index.items()}
-    # sorted_doc_ids = [index_to_id[i] for i in range(len(index_to_id))]
-    # sorted_indices = [id_to_index[doc_id] for doc_id in sorted_doc_ids]
-    # doc_embedding_sorted = doc_embedding[sorted_indices]
-    # softmaxed_logits = torch.stack([softmax_logits_map.get(doc_id) for doc_id in sorted_doc_ids])
-    # del softmax_logits_map, doc_embedding, doc_logits, logits_map
-    # torch.cuda.empty_cache()
+    sorted_doc_ids = [index_to_id[i] for i in range(len(index_to_id))]
+    sorted_indices = [id_to_index[doc_id] for doc_id in sorted_doc_ids]
+    doc_embedding_sorted = doc_embedding[sorted_indices]
+    softmaxed_logits = torch.stack([softmax_logits_map.get(doc_id) for doc_id in sorted_doc_ids])
+    del softmax_logits_map, doc_embedding, doc_logits, logits_map
+    torch.cuda.empty_cache()
     data = Indxr(cfg.testing.query_path, key_id='_id')
     if cfg.testing.rerank:
         bert_run = get_bert_rerank(data, model, doc_embedding_sorted, doc_logits, bm25_run, id_to_index)
     else:
-        # bert_run = get_full_bert_rank(data, model, doc_embedding_sorted, softmaxed_logits, index_to_id, 1000)
-        bert_run = get_full_bert_rank(data, model, doc_embedding, index_to_id, 1000)
+        bert_run = get_full_bert_rank(data, model, doc_embedding_sorted, softmaxed_logits, index_to_id, 1000)
         
     
     # with open(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.json', 'w') as f:
@@ -150,8 +143,7 @@ def main(cfg: DictConfig):
         ranx_run = Run(bert_run, 'FullRun')
         models = [ranx_run]
     
-    # import ipdb; ipdb.set_trace()
-    ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder.json')
+    ranx_run.save(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder-{cfg.model.init.specialized_mode}.json')
     
     evaluation_report = compare(ranx_qrels, models, ['map@100', 'mrr@10', 'recall@100', 'ndcg@10', 'precision@1', 'ndcg@3'])
     print(evaluation_report)
