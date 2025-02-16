@@ -1,1 +1,1 @@
-# Multiple Textual Representations for Contextualized Dense Retrieval
+# Leveraging Cognitive Complexity of Texts for Contextualization in Dense Retrieval
