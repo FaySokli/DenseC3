@@ -43,7 +43,7 @@ class MoEBiEncoder(nn.Module):
         self.normalize = normalize
         self.max_tokens = max_tokens
         self.use_adapters = use_adapters
-        assert specialized_mode in ['blooms_top1', 'blooms_top1AVG'], 'Only blooms_top1 and blooms_top1AVG specialzed mode allowed'
+        assert specialized_mode in ['blooms_top1', 'blooms_all'], 'Only blooms_top1 and blooms_all specialzed modes allowed'
         self.specialized_mode = specialized_mode
         assert pooling_mode in ['max', 'mean', 'cls', 'identity'], 'Only cls, identity, max and mean pooling allowed'
         if pooling_mode == 'mean':
@@ -101,7 +101,7 @@ class MoEBiEncoder(nn.Module):
                 out = out * mask
                 return out
             
-            elif self.specialized_mode == 'blooms_top1AVG':
+            elif self.specialized_mode == 'blooms_all':
                 out = torch.softmax(out/10, dim=-1)
                 # out = torch.sigmoid(out/10)
                 return out
@@ -113,7 +113,7 @@ class MoEBiEncoder(nn.Module):
 
         if self.specialized_mode == 'blooms_top1':
             query_embedding = self.encoder(data[0], logits_class).to(self.device)
-        elif self.specialized_mode == 'blooms_top1AVG':
+        elif self.specialized_mode == 'blooms_all':
             query_embedding = self.encoder_no_moe(data[0]).to(self.device)
             if self.use_adapters:
                 query_embedding = self.embedder_q(query_embedding).to(self.device)
@@ -126,7 +126,7 @@ class MoEBiEncoder(nn.Module):
 
         if self.specialized_mode == 'blooms_top1':
             query_embedding = self.encoder(data[0], logits_class).to(self.device)
-        elif self.specialized_mode == 'blooms_top1AVG':
+        elif self.specialized_mode == 'blooms_all':
             query_embedding = self.encoder_no_moe(data[0]).to(self.device)
             if self.use_adapters:
                 query_embedding = self.embedder_q(query_embedding).to(self.device)

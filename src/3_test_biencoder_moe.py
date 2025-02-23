@@ -47,7 +47,7 @@ def get_full_bert_rank(data, model, doc_embedding, softmaxed_logits, index_to_id
                 torch.cuda.empty_cache()
                 bert_scores = torch.einsum('nd,nd->n', doc_embedding, q_embedding)
 
-            elif model.specialized_mode == 'blooms_top1AVG':
+            elif model.specialized_mode == 'blooms_all':
                 q_embedding = model.embedder_q(q_encoded)
                 bert_scores = torch.einsum('xy, ly -> x', doc_embedding, q_embedding)
 

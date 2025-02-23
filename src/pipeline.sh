@@ -1,4 +1,4 @@
-DATASET=computer_science
+DATASET=computer-science
 MODEL=tinybert
 
 python3 1_train_new_moe.py model=$MODEL dataset=$DATASET testing=$DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
@@ -8,14 +8,14 @@ echo "$DATASET MoE"
 python3 3_test_biencoder_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
 
 
-DATASET=political_science
+DATASET=political-science
 MODEL=contriever-base
 
-python3 1_train_new_moe.py model=$MODEL dataset=$DATASET testing=$DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
+python3 1_train_new_moe.py model=$MODEL dataset=$DATASET testing=$DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_all
 TESTING_DATASET=$DATASET
-python3 2_create_embedding_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
+python3 2_create_embedding_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_all
 echo "$DATASET MoE"
-python3 3_test_biencoder_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
+python3 3_test_biencoder_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_all
 
 
 DATASET=hotpotqa
@@ -29,11 +29,11 @@ python3 3_test_biencoder_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$T
 
 
 DATASET=nq-train
-MODEL=tinybert
+MODEL=colbert
 
-python3 1_train_new_moe.py model=$MODEL dataset=$DATASET testing=$DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
+python3 1_train_new_moe.py model=$MODEL dataset=$DATASET testing=$DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_all
 TESTING_DATASET=$DATASET
-python3 2_create_embedding_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
+python3 2_create_embedding_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_all
 echo "$DATASET MoE"
-python3 3_test_biencoder_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_top1
+python3 3_test_biencoder_moe.py model=$MODEL dataset=$TESTING_DATASET testing=$TESTING_DATASET model.adapters.use_adapters=True model.init.specialized_mode=blooms_all
 
