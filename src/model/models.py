@@ -43,7 +43,7 @@ class MoEBiEncoder(nn.Module):
         self.normalize = normalize
         self.max_tokens = max_tokens
         self.use_adapters = use_adapters
-        assert specialized_mode in ['blooms_top1', 'blooms_all'], 'Only blooms_top1 and blooms_all specialzed modes allowed'
+        assert specialized_mode in ['densec3_top1', 'densec3_w'], 'Only densec3_top1 and densec3_w specialzed modes allowed'
         self.specialized_mode = specialized_mode
         assert pooling_mode in ['max', 'mean', 'cls', 'identity'], 'Only cls, identity, max and mean pooling allowed'
         if pooling_mode == 'mean':
@@ -89,7 +89,7 @@ class MoEBiEncoder(nn.Module):
             return out
         
         else:
-            if self.specialized_mode == 'blooms_top1':
+            if self.specialized_mode == 'densec3_top1':
                 out = torch.softmax(out/10, dim=-1)
                 # out = torch.sigmoid(out/10)
 
@@ -101,7 +101,7 @@ class MoEBiEncoder(nn.Module):
                 out = out * mask
                 return out
             
-            elif self.specialized_mode == 'blooms_all':
+            elif self.specialized_mode == 'densec3_w':
                 out = torch.softmax(out/10, dim=-1)
                 # out = torch.sigmoid(out/10)
                 return out
@@ -111,9 +111,9 @@ class MoEBiEncoder(nn.Module):
         logits_class = self.cls(data[2]).to(self.device)
         pos_embedding = self.encoder(data[1], logits_class).to(self.device)
 
-        if self.specialized_mode == 'blooms_top1':
+        if self.specialized_mode == 'densec3_top1':
             query_embedding = self.encoder(data[0], logits_class).to(self.device)
-        elif self.specialized_mode == 'blooms_all':
+        elif self.specialized_mode == 'densec3_w':
             query_embedding = self.encoder_no_moe(data[0]).to(self.device)
             if self.use_adapters:
                 query_embedding = self.embedder_q(query_embedding).to(self.device)
@@ -124,9 +124,9 @@ class MoEBiEncoder(nn.Module):
         logits_class = self.cls(data[2]).to(self.device)
         pos_embedding = self.encoder(data[1], logits_class).to(self.device)
 
-        if self.specialized_mode == 'blooms_top1':
+        if self.specialized_mode == 'densec3_top1':
             query_embedding = self.encoder(data[0], logits_class).to(self.device)
-        elif self.specialized_mode == 'blooms_all':
+        elif self.specialized_mode == 'densec3_w':
             query_embedding = self.encoder_no_moe(data[0]).to(self.device)
             if self.use_adapters:
                 query_embedding = self.embedder_q(query_embedding).to(self.device)

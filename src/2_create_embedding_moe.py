@@ -31,10 +31,8 @@ def main(cfg: DictConfig):
         datefmt='%Y-%m-%d %H:%M:%S',
         level=logging.INFO
     )
-
     
     seed_everything(cfg.general.seed)
-    
     corpus = Indxr(cfg.testing.corpus_path, key_id='_id')
     corpus = sorted(corpus, key=lambda k: len(k.get("title", "") + k.get("text", "")), reverse=True)
     logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
@@ -63,6 +61,8 @@ def main(cfg: DictConfig):
         device=cfg.model.init.device
     )
     model.load_state_dict(torch.load(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-{cfg.model.init.specialized_mode}.pt', weights_only=True))
+    # model.load_state_dict(torch.load(f'output/msmarco/saved_models/{cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}-{cfg.model.init.specialized_mode}.pt', weights_only=True))
+
     """
     logging.info(f'Loading model from {cfg.model.init.save_model}.pt')
     if os.path.exists(f'{cfg.dataset.model_dir}/{cfg.model.init.save_model}.pt'):
@@ -110,4 +110,3 @@ def main(cfg: DictConfig):
     
 if __name__ == '__main__':
     main()
-    

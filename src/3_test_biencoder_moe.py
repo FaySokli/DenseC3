@@ -14,7 +14,73 @@ from model.utils import seed_everything
 
 from ranx import Run, Qrels, compare
 
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+from sklearn.manifold import TSNE
+import random
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+
 logger = logging.getLogger(__name__)
+
+def visualize_tsne(query_embedding, top_doc_embeddings, top_doc_ids, query_id, output_dir, experts_used, relevants, use_adapters=True):
+    all_embeddings = torch.cat([query_embedding, top_doc_embeddings], dim=0).cpu().numpy()
+    relevant_set = set(relevants)
+
+    tsne = TSNE(n_components=3, random_state=42, perplexity=30, init='pca')
+    embeddings_3d = tsne.fit_transform(all_embeddings)
+
+    fig = plt.figure(figsize=(12, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.scatter(embeddings_3d[0, 0], embeddings_3d[0, 1], embeddings_3d[0, 2], 
+               c='black', label='query', marker='X', s=100)
+
+    color_map = plt.cm.tab10
+    safe_colors = [color_map(i) for i in range(color_map.N) if i != 3]
+    marker_list = ['o', '^', 's', 'D', 'v', 'P', '*', 'X', '<', '>']
+
+    for i, (x, y, z) in enumerate(embeddings_3d[1:], start=1):
+        doc_id = top_doc_ids[i-1]
+        is_relevant = doc_id in relevant_set
+
+        if use_adapters:
+            expert_id = experts_used[i-1]
+            color = safe_colors[expert_id % len(safe_colors)]
+            marker = marker_list[expert_id % len(marker_list)]
+        else:
+            color = 'blue'
+            marker = 'o'
+
+        if is_relevant:
+            ax.scatter(x, y, z, edgecolors='red', facecolors='none', s=120, linewidths=2,
+                       marker='o', label='relevant_docs' if i == 1 else "")
+        else:
+            ax.scatter(x, y, z, c=[color], marker=marker, alpha=0.6, s=40)
+
+    # Legend
+    handles = [mlines.Line2D([], [], color='black', marker='X', linestyle='None', markersize=10, label='query'),
+               mlines.Line2D([], [], color='red', marker='o', markerfacecolor='none', linestyle='None', markersize=10, label='relevant_docs')]
+
+    if use_adapters:
+        unique_experts = sorted(set(experts_used))
+        for expert_id in unique_experts:
+            handles.append(
+                mlines.Line2D([], [], color=safe_colors[expert_id % len(safe_colors)], marker=marker_list[expert_id % len(marker_list)],
+                              linestyle='None', markersize=10, label=f'Expert {expert_id + 1}')
+            )
+
+    ax.legend(handles=handles, fontsize=20)
+    # ax.set_title(f"3D t-SNE: Query {query_id} and Top 1000 Docs")
+    plt.grid(True)
+    plt.tight_layout()
+
+    filename = f"tsne_query_{query_id}_3D_experts.png" if use_adapters else f"tsne_query_{query_id}_3D_NO_experts.png"
+    save_path = os.path.join(output_dir, filename)
+    plt.savefig(save_path, dpi=900)
+    plt.close()
+    print(f"Saved t-SNE plot: {save_path}")
 
 
 def get_bert_rerank(data, model, doc_embedding, bm25_runs, id_to_index):
@@ -32,22 +98,22 @@ def get_bert_rerank(data, model, doc_embedding, bm25_runs, id_to_index):
     return bert_run
 
 
-def get_full_bert_rank(data, model, doc_embedding, softmaxed_logits, index_to_id, k=1000):
+def get_full_bert_rank(data, model, doc_embedding, softmaxed_logits, index_to_id, device, k=1000):
     bert_run = {}
     model.eval()
     for q in tqdm.tqdm(data, total=len(data)):
         with torch.no_grad():
-            # with torch.autocast(device_type="cuda"):
+            # with torch.autocast(device_type=device):
             q_encoded = model.encoder_no_moe([q['text']])
 
-            if model.specialized_mode == 'blooms_top1':
+            if model.specialized_mode == 'densec3_top1':
                 q_embedding = model.embedder_q_inf(q_encoded)
                 q_embedding = torch.einsum('md,nm->nd', q_embedding.squeeze(0), softmaxed_logits) + q_encoded
                 del q_encoded
                 torch.cuda.empty_cache()
                 bert_scores = torch.einsum('nd,nd->n', doc_embedding, q_embedding)
 
-            elif model.specialized_mode == 'blooms_all':
+            elif model.specialized_mode == 'densec3_w':
                 q_embedding = model.embedder_q(q_encoded)
                 bert_scores = torch.einsum('xy, ly -> x', doc_embedding, q_embedding)
 
@@ -105,7 +171,7 @@ def main(cfg: DictConfig):
     doc_logits = Indxr(cfg.testing.corpus_logits, key_id='_id')
     logits_map = {doc['_id']: doc['logits'] for doc in doc_logits}
     softmax_logits_map = {
-    _id: torch.softmax(torch.tensor(logits, dtype=torch.float32)/10, dim=-1).to("cuda")
+    _id: torch.softmax(torch.tensor(logits, dtype=torch.float32)/10, dim=-1).to(cfg.model.init.device)
     for _id, logits in logits_map.items()
     }
     
@@ -126,7 +192,7 @@ def main(cfg: DictConfig):
     if cfg.testing.rerank:
         bert_run = get_bert_rerank(data, model, doc_embedding_sorted, doc_logits, bm25_run, id_to_index)
     else:
-        bert_run = get_full_bert_rank(data, model, doc_embedding_sorted, softmaxed_logits, index_to_id, 1000)
+        bert_run = get_full_bert_rank(data, model, doc_embedding_sorted, softmaxed_logits, index_to_id, cfg.model.init.device, 1000)
         
     
     # with open(f'{cfg.dataset.runs_dir}/{cfg.model.init.save_model}_biencoder.json', 'w') as f:
@@ -148,6 +214,53 @@ def main(cfg: DictConfig):
     evaluation_report = compare(ranx_qrels, models, ['map@100', 'mrr@10', 'recall@100', 'ndcg@10', 'precision@1', 'ndcg@3'])
     print(evaluation_report)
     logging.info(f"Results for {cfg.model.init.save_model}_experts{cfg.model.adapters.num_experts}_biencoder.json:\n{evaluation_report}")
+
+    ############################
+    # Create directory for t-SNE plots
+    tsne_dir = os.path.join(cfg.dataset.output_dir, 'tsne_plots')
+    os.makedirs(tsne_dir, exist_ok=True)
+    relevants_dict = ranx_qrels.to_dict()
+
+    ############################
+    # 3D t-SNE
+    ############################
+    # for i in range(40):
+    for query_id in qids:
+        # import time
+        # random.seed(time.time())  # Changes every run
+        # random_query = random.choice(data)
+        # query_id = random_query['_id']
+        # # query_id = "2950442623"
+        # # random_query = data.get(query_id)
+        # print(f"Selected query ID: {query_id}")
+
+        query_data = next((q for q in data if q['_id'] == query_id), None)
+        if query_data is None:
+            print(f"Query ID {query_id} not found in data, skipping.")
+            continue
+        print(f"Selected query ID: {query_id}")
+
+        # query
+        model.eval()
+        with torch.no_grad():
+            q_encoded = model.encoder_no_moe([query_data['text']])
+            query_embedding = model.embedder_q(q_encoded).half()
+
+        # Get top 1000 docs
+        topk_ids = list(bert_run[query_id].keys())[:1000]
+        topk_indices = [id_to_index[doc_id] for doc_id in topk_ids]
+
+        # Get embeddings and top-1 expert IDs for those docs
+        top_doc_embeddings = doc_embedding_sorted[topk_indices].to(cfg.model.init.device)
+        top_doc_logits = softmaxed_logits[topk_indices]
+        top_doc_expert_ids = torch.argmax(top_doc_logits, dim=1).tolist()
+
+        # Get relevant doc IDs
+        relevants = set(relevants_dict.get(query_id, {}).keys())
+
+        # Generate and save t-SNE
+        visualize_tsne(query_embedding, top_doc_embeddings, topk_ids, query_id, tsne_dir, top_doc_expert_ids, relevants, use_adapters=cfg.model.adapters.use_adapters)
+    ############################
 
 if __name__ == '__main__':
     main()

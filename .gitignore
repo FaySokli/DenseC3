@@ -3,6 +3,7 @@ __pycache__/
 nq*
 multi-domain*
 hotpotqa*
+msmarco*
 .hydra/
 output/
 *.json
